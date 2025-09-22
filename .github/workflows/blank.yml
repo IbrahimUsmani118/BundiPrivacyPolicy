@@ -3,11 +3,13 @@ name: Deploy README to GitHub Pages
 on:
   push:
     branches:
-      - main  # deploy when pushing to main branch
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -20,12 +22,23 @@ jobs:
       - name: Install markdown converter
         run: npm install -g marked
 
-      - name: Convert README.md to index.html
-        run: marked README.md -o index.html
+      # Convert README (which should NOT contain the H1 title) to pure HTML
+      - name: Convert README.md to content.html (no header ids)
+        run: marked README.md --no-header-ids -o content.html
 
+      # Inject the converted HTML into our template
+      - name: Build index.html from template
+        run: |
+          sed -e '/<!--CONTENT-->/{
+            r content.html
+            d
+          }' template.html > index.html
+
+      # Deploy static site (this action drops a .nojekyll by default)
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
           publish_dir: ./
-          force_orphan: true   # ensures first push works
+          force_orphan: true
