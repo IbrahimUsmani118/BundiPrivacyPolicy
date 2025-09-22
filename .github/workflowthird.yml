@@ -1,44 +1,47 @@
-name: Deploy README to GitHub Pages
+name: Deploy README to GitHub Pages (official)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
 
       - name: Install markdown converter
         run: npm install -g marked
 
-      # Convert README (which should NOT contain the H1 title) to pure HTML
-      - name: Convert README.md to content.html (no header ids)
-        run: marked README.md --no-header-ids -o content.html
-
-      # Inject the converted HTML into our template
-      - name: Build index.html from template
+      - name: Build static site
         run: |
-          sed -e '/<!--CONTENT-->/{
-            r content.html
-            d
-          }' template.html > index.html
+          marked README.md -o index.html
+          mkdir -p dist
+          mv index.html dist/
 
-      # Deploy static site (this action drops a .nojekyll by default)
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: ./
-          force_orphan: true
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
